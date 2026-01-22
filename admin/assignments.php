@@ -30,6 +30,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_excel'])) {
     }
 }
 
+// Handle clearing daily assignments
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_daily_assignments'])) {
+    $today = date('Y-m-d');
+    $stmt = $pdo->prepare("DELETE FROM daily_assignments WHERE DATE(date_assigned) = ?");
+    $stmt->execute([$today]);
+    
+    $success_message = "Daily assignments cleared successfully!";
+}
+
 // Get all agents
 $agents_stmt = $pdo->query("SELECT id, name, username FROM users WHERE role = 'agent'");
 $agents = $agents_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -85,73 +94,25 @@ $today_assignments = $assignments_stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="alert alert-danger"><?php echo htmlspecialchars($error_message); ?></div>
             <?php endif; ?>
             
-            <h2>Assign Agents to Entities</h2>
-            <form method="post" action="">
-                <input type="hidden" name="assign_shops" value="1">
-                
-                <div class="form-group">
-                    <label for="assignment_date">Assignment Date:</label>
-                    <input type="date" id="assignment_date" name="assignment_date" value="<?php echo date('Y-m-d'); ?>">
-                </div>
-                
-                <div class="form-group">
-                    <label for="agent_id">Agent Name:</label>
-                    <select id="agent_id" name="agent_id" required>
-                        <option value="">Choose an agent</option>
-                        <?php foreach ($agents as $agent): ?>
-                            <option value="<?php echo $agent['id']; ?>"><?php echo htmlspecialchars($agent['name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="target_amount">Target Amount per Assignment:</label>
-                    <input type="number" id="target_amount" name="target_amount" step="0.01" min="0" required>
-                </div>
-                
-                <div class="form-group">
-                    <label>Select Assignment Details:</label>
-                    <table class="assignment-table">
-                        <thead>
-                            <tr>
-                                <th>Select</th>
-                                <th>Region</th>
-                                <th>Mall</th>
-                                <th>Entity</th>
-                                <th>Brand</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($stores as $store): ?>
-                                <tr>
-                                    <td><input type="checkbox" id="store_<?php echo $store['id']; ?>" name="stores[]" value="<?php echo $store['id']; ?>"></td>
-                                    <td><?php echo htmlspecialchars($store['region_name'] ?? 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($store['mall'] ?? 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($store['entity'] ?? 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($store['brand'] ?? 'N/A'); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <button type="submit" class="btn">Assign Entities</button>
-            </form>
-            
-            <hr style="margin: 30px 0;">
-            
-            <h2>Import Assignments via Excel</h2>
+            <h2>Assignments - Import via Excel</h2>
             <form method="post" action="" enctype="multipart/form-data">
                 <input type="hidden" name="import_excel" value="1">
                 
                 <div class="form-group">
                     <label for="excel_file">Upload Excel File:</label>
                     <input type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
-                    <small>Excel file should have columns: Agent Name, Region, Shops</small>
+                    <small>Excel file should have columns: AgentName, ID, Shop, Mall, Region, Entity, Brand</small>
                 </div>
                 
-                <button type="submit" class="btn">Import from Excel</button>
+                <button type="submit" class="btn">Import Assignments from Excel</button>
             </form>
+            
+            <div style="margin-top: 20px;">
+                <form method="post" action="">
+                    <input type="hidden" name="clear_daily_assignments" value="1">
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to clear today\'s assignments?')">Clear Daily Assignments</button>
+                </form>
+            </div>
             
             <hr style="margin: 30px 0;">
             
@@ -160,10 +121,13 @@ $today_assignments = $assignments_stmt->fetchAll(PDO::FETCH_ASSOC);
                 <table>
                     <thead>
                         <tr>
-                            <th>Agent</th>
-                            <th>Store</th>
+                            <th>Agent Name</th>
+                            <th>ID</th>
+                            <th>Shop</th>
+                            <th>Mall</th>
                             <th>Region</th>
-                            <th>Target Amount</th>
+                            <th>Entity</th>
+                            <th>Brand</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -171,9 +135,12 @@ $today_assignments = $assignments_stmt->fetchAll(PDO::FETCH_ASSOC);
                         <?php foreach ($today_assignments as $assignment): ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($assignment['agent_name']); ?></td>
+                                <td><?php echo htmlspecialchars($assignment['agent_id']); ?></td>
                                 <td><?php echo htmlspecialchars($assignment['store_name']); ?></td>
+                                <td><?php echo htmlspecialchars($assignment['mall'] ?? 'N/A'); ?></td>
                                 <td><?php echo htmlspecialchars($assignment['region_name'] ?? 'N/A'); ?></td>
-                                <td><?php echo number_format($assignment['target_amount'], 2); ?></td>
+                                <td><?php echo htmlspecialchars($assignment['entity'] ?? 'N/A'); ?></td>
+                                <td><?php echo htmlspecialchars($assignment['brand'] ?? 'N/A'); ?></td>
                                 <td>
                                     <span class="status-<?php echo $assignment['status']; ?>">
                                         <?php 

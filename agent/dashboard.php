@@ -15,7 +15,7 @@ $today = date('Y-m-d');
 
 // Get agent's assignments for today
 $stmt = $pdo->prepare("
-    SELECT da.*, s.name as store_name, s.address as store_address
+    SELECT da.*, s.name as store_name, s.address as store_address, s.mall
     FROM daily_assignments da
     JOIN stores s ON da.store_id = s.id
     WHERE da.agent_id = ? AND DATE(da.date_assigned) = ?
@@ -48,6 +48,21 @@ foreach ($assignments as $assignment) {
 
 $collection_percentage = $total_target > 0 ? round(($total_collected / $total_target) * 100, 2) : 0;
 $remaining_assignments = $total_assignments - $completed_count;
+
+// Get bank submissions count for this agent
+$bank_stmt = $pdo->prepare("SELECT COUNT(*) as count FROM bank_submissions WHERE agent_id = ?");
+$bank_stmt->execute([$agent_id]);
+$bank_submissions = $bank_stmt->fetchColumn() ?: 0;
+
+// Get distinct malls assigned to this agent today
+$malls_stmt = $pdo->prepare("
+    SELECT DISTINCT s.mall 
+    FROM daily_assignments da
+    JOIN stores s ON da.store_id = s.id
+    WHERE da.agent_id = ? AND DATE(da.date_assigned) = ? AND s.mall IS NOT NULL
+");
+$malls_stmt->execute([$agent_id, $today]);
+$malls_assigned = $malls_stmt->fetchAll(PDO::FETCH_COLUMN);
 ?>
 
 <!DOCTYPE html>
@@ -76,7 +91,7 @@ $remaining_assignments = $total_assignments - $completed_count;
 <body>
     <div class="container">
         <div class="header">
-            <h1>Welcome, <?php echo htmlspecialchars($_SESSION['name']); ?></h1>
+            <h1>Apparels Collection Tracker - Welcome, <?php echo htmlspecialchars($_SESSION['name']); ?></h1>
             <div class="nav-links">
                 <a href="dashboard.php" class="active">Dashboard</a>
                 <a href="store.php">Store</a>
@@ -86,27 +101,37 @@ $remaining_assignments = $total_assignments - $completed_count;
         </div>
         
         <div class="content">
-            <h2>Today's Collection Target</h2>
+            <h2>Today's Collection Target Session</h2>
             
             <div class="dashboard-stats">
                 <div class="stat-card">
-                    <h3><?php echo number_format($total_target, 2); ?></h3>
-                    <p>Total Target</p>
+                    <h3><?php echo count($assignments); ?></h3>
+                    <p>Assigned Shops</p>
                 </div>
                 
                 <div class="stat-card">
-                    <h3><?php echo number_format($total_collected, 2); ?></h3>
-                    <p>Collected</p>
+                    <h3><?php echo $completed_count; ?></h3>
+                    <p>Completed Shops</p>
                 </div>
                 
                 <div class="stat-card">
-                    <h3><?php echo $collection_percentage; ?>%</h3>
+                    <h3><?php echo $total_assignments > 0 ? round(($completed_count / $total_assignments) * 100, 2) : 0; ?>%</h3>
                     <p>Completion Rate</p>
                 </div>
                 
                 <div class="stat-card">
                     <h3><?php echo $remaining_assignments; ?></h3>
                     <p>Remaining Stores</p>
+                </div>
+                
+                <div class="stat-card">
+                    <h3><?php echo $bank_submissions; ?></h3>
+                    <p>Bank Submissions</p>
+                </div>
+                
+                <div class="stat-card">
+                    <h3><?php echo count($malls_assigned); ?></h3>
+                    <p>Malls Assigned</p>
                 </div>
             </div>
             

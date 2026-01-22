@@ -74,6 +74,7 @@ function initializeDatabase() {
         assignment_id INT,
         amount_collected DECIMAL(10,2),
         pending_amount DECIMAL(10,2) DEFAULT 0,
+        mode_of_payment ENUM('cash', 'cheque', 'online_transfer', 'credit_card', 'other'),
         comments TEXT,
         receipt_images JSON,
         submitted_to_bank BOOLEAN DEFAULT FALSE,
@@ -82,6 +83,13 @@ function initializeDatabase() {
         FOREIGN KEY (assignment_id) REFERENCES daily_assignments(id)
     )";
     $pdo->exec($sql);
+    
+    // Add mode_of_payment column if it doesn't exist
+    try {
+        $pdo->exec("ALTER TABLE collections ADD COLUMN mode_of_payment ENUM('cash', 'cheque', 'online_transfer', 'credit_card', 'other')");
+    } catch (PDOException $e) {
+        // Column might already exist, ignore error
+    }
     
     // Bank submissions table
     $sql = "CREATE TABLE IF NOT EXISTS bank_submissions (

@@ -1,10 +1,11 @@
+```gitignore
 # Compiled and build artifacts
 *.pyc
 __pycache__/
 
 # Dependencies
 vendor/
-composer.lock
+node_modules/
 
 # Logs and temp files
 *.log
@@ -19,3 +20,14 @@ composer.lock
 # Editors
 .vscode/
 .idea/
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Distribution files
+dist/
+build/
+target/
+```

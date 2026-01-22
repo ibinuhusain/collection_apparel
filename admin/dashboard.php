@@ -4,41 +4,40 @@ requireAdmin();
 
 $pdo = getConnection();
 
-// Get today's date for statistics
-$today = date('Y-m-d');
-
-// Total collections today
-$stmt = $pdo->prepare("
-    SELECT SUM(c.amount_collected) as total_collected 
-    FROM collections c 
-    JOIN daily_assignments da ON c.assignment_id = da.id 
-    WHERE DATE(da.date_assigned) = ?
-");
-$stmt->execute([$today]);
-$total_collected = $stmt->fetchColumn() ?: 0;
-
-// Total agents in transit (have assignments for today)
-$stmt = $pdo->prepare("
-    SELECT COUNT(DISTINCT da.agent_id) as agents_in_transit 
-    FROM daily_assignments da 
-    WHERE DATE(da.date_assigned) = ? AND da.status != 'submitted'
-");
-$stmt->execute([$today]);
-$agents_in_transit = $stmt->fetchColumn() ?: 0;
-
-// Completed orders today
-$stmt = $pdo->prepare("
-    SELECT COUNT(*) as completed_orders 
-    FROM daily_assignments da 
-    WHERE DATE(da.date_assigned) = ? AND da.status = 'completed'
-");
-$stmt->execute([$today]);
-$completed_orders = $stmt->fetchColumn() ?: 0;
-
-// Get all agents for the stats
+// Get counts for dashboard statistics
 $stmt = $pdo->prepare("SELECT COUNT(*) as total_agents FROM users WHERE role = 'agent'");
 $stmt->execute();
 $total_agents = $stmt->fetchColumn() ?: 0;
+
+$stmt = $pdo->prepare("SELECT COUNT(*) as total_shops FROM stores");
+$stmt->execute();
+$total_shops = $stmt->fetchColumn() ?: 0;
+
+$stmt = $pdo->prepare("SELECT COUNT(*) as total_malls FROM malls");
+$stmt->execute();
+$total_malls = $stmt->fetchColumn() ?: 0;
+
+$stmt = $pdo->prepare("SELECT COUNT(*) as total_entities FROM entities");
+$stmt->execute();
+$total_entities = $stmt->fetchColumn() ?: 0;
+
+$stmt = $pdo->prepare("SELECT COUNT(*) as total_regions FROM regions");
+$stmt->execute();
+$total_regions = $stmt->fetchColumn() ?: 0;
+
+// Calculate completion rate
+$stmt = $pdo->prepare("
+    SELECT 
+        COUNT(CASE WHEN da.status = 'completed' THEN 1 END) as completed_assignments,
+        COUNT(*) as total_assignments
+    FROM daily_assignments da
+");
+$stmt->execute();
+$result = $stmt->fetch(PDO::FETCH_ASSOC);
+$completed_assignments = $result['completed_assignments'] ?: 0;
+$total_assignments = $result['total_assignments'] ?: 1; // Avoid division by zero
+
+$completion_rate = $total_assignments > 0 ? round(($completed_assignments / $total_assignments) * 100, 2) : 0;
 ?>
 
 <!DOCTYPE html>
@@ -67,7 +66,7 @@ $total_agents = $stmt->fetchColumn() ?: 0;
 <body>
     <div class="container">
         <div class="header">
-            <h1>Admin Dashboard</h1>
+            <h1>Apparels Collection Tracker - Admin Dashboard</h1>
             <div class="nav-links">
                 <a href="dashboard.php" class="active">Home</a>
                 <a href="assignments.php">Assignments</a>
@@ -79,27 +78,37 @@ $total_agents = $stmt->fetchColumn() ?: 0;
         </div>
         
         <div class="content">
-            <h2>Today's Summary</h2>
+            <h2>Dashboard Overview</h2>
             
             <div class="dashboard-stats">
                 <div class="stat-card">
-                    <h3><?php echo number_format($total_collected, 2); ?></h3>
-                    <p>Total Collected Today</p>
-                </div>
-                
-                <div class="stat-card">
-                    <h3><?php echo $agents_in_transit; ?></h3>
-                    <p>Agents In Transit</p>
-                </div>
-                
-                <div class="stat-card">
-                    <h3><?php echo $completed_orders; ?></h3>
-                    <p>Completed Orders</p>
-                </div>
-                
-                <div class="stat-card">
                     <h3><?php echo $total_agents; ?></h3>
-                    <p>Total Agents</p>
+                    <p>Assigned Agents</p>
+                </div>
+                
+                <div class="stat-card">
+                    <h3><?php echo $total_shops; ?></h3>
+                    <p>Assigned Shops</p>
+                </div>
+                
+                <div class="stat-card">
+                    <h3><?php echo $total_malls; ?></h3>
+                    <p>Malls</p>
+                </div>
+                
+                <div class="stat-card">
+                    <h3><?php echo $total_entities; ?></h3>
+                    <p>Entities</p>
+                </div>
+                
+                <div class="stat-card">
+                    <h3><?php echo $total_regions; ?></h3>
+                    <p>Regions</p>
+                </div>
+                
+                <div class="stat-card">
+                    <h3><?php echo $completion_rate; ?>%</h3>
+                    <p>Completion Status</p>
                 </div>
             </div>
             

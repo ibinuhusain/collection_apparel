@@ -41,17 +41,24 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $amount_collected = floatval($_POST['amount_collected']);
     $pending_amount = floatval($_POST['pending_amount']);
+    $mode_of_payment = trim($_POST['mode_of_payment']);
     $comments = trim($_POST['comments']);
     
+    // Validate mode of payment
+    $valid_modes = ['cash', 'cheque', 'online_transfer', 'credit_card', 'other'];
+    if (!in_array($mode_of_payment, $valid_modes)) {
+        $error = 'Please select a valid mode of payment.';
+    }
+    
     // Handle file uploads
-    $receipt_images = [];
-    if (isset($_FILES['receipt_images']) && $_FILES['receipt_images']['error'][0] !== UPLOAD_ERR_NO_FILE) {
+    $zslip_images = [];
+    if (isset($_FILES['zslip_images']) && $_FILES['zslip_images']['error'][0] !== UPLOAD_ERR_NO_FILE) {
         $upload_dir = '../uploads/';
         
-        for ($i = 0; $i < count($_FILES['receipt_images']['name']); $i++) {
-            if ($_FILES['receipt_images']['error'][$i] === UPLOAD_ERR_OK) {
-                $tmp_name = $_FILES['receipt_images']['tmp_name'][$i];
-                $name = $_FILES['receipt_images']['name'][$i];
+        for ($i = 0; $i < count($_FILES['zslip_images']['name']); $i++) {
+            if ($_FILES['zslip_images']['error'][$i] === UPLOAD_ERR_OK) {
+                $tmp_name = $_FILES['zslip_images']['tmp_name'][$i];
+                $name = $_FILES['zslip_images']['name'][$i];
                 
                 // Sanitize filename
                 $name = preg_replace('/[^a-zA-Z0-9._-]/', '_', $name);
@@ -62,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $destination = $upload_dir . $new_filename;
                     
                     if (move_uploaded_file($tmp_name, $destination)) {
-                        $receipt_images[] = $new_filename;
+                        $zslip_images[] = $new_filename;
                     } else {
                         $error = 'Failed to upload one or more images.';
                     }
@@ -84,28 +91,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Update existing collection
                 $update_stmt = $pdo->prepare("
                     UPDATE collections 
-                    SET amount_collected = ?, pending_amount = ?, comments = ?, receipt_images = ?
+                    SET amount_collected = ?, pending_amount = ?, mode_of_payment = ?, comments = ?, receipt_images = ?
                     WHERE assignment_id = ?
                 ");
                 $update_stmt->execute([
                     $amount_collected, 
                     $pending_amount, 
+                    $mode_of_payment,
                     $comments, 
-                    json_encode($receipt_images), 
+                    json_encode($zslip_images), 
                     $assignment_id
                 ]);
             } else {
                 // Insert new collection
                 $insert_stmt = $pdo->prepare("
-                    INSERT INTO collections (assignment_id, amount_collected, pending_amount, comments, receipt_images)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO collections (assignment_id, amount_collected, pending_amount, mode_of_payment, comments, receipt_images)
+                    VALUES (?, ?, ?, ?, ?, ?)
                 ");
                 $insert_stmt->execute([
                     $assignment_id, 
                     $amount_collected, 
                     $pending_amount, 
+                    $mode_of_payment,
                     $comments, 
-                    json_encode($receipt_images)
+                    json_encode($zslip_images)
                 ]);
             }
             
@@ -113,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $update_assignment = $pdo->prepare("UPDATE daily_assignments SET status = 'completed' WHERE id = ?");
             $update_assignment->execute([$assignment_id]);
             
-            $message = 'Collection information saved successfully!';
+            $message = 'Store collection completed successfully!';
         } catch (PDOException $e) {
             $error = 'Error saving collection: ' . $e->getMessage();
         }
@@ -129,8 +138,9 @@ $collection = $stmt->fetch(PDO::FETCH_ASSOC);
 // Set default values if no collection exists yet
 $amount_collected = $collection ? $collection['amount_collected'] : 0;
 $pending_amount = $collection ? $collection['pending_amount'] : 0;
+$mode_of_payment = $collection ? $collection['mode_of_payment'] : '';
 $comments = $collection ? $collection['comments'] : '';
-$receipt_images = $collection ? json_decode($collection['receipt_images'], true) : [];
+$zslip_images = $collection ? json_decode($collection['receipt_images'], true) : [];
 ?>
 
 <!DOCTYPE html>
@@ -145,7 +155,7 @@ $receipt_images = $collection ? json_decode($collection['receipt_images'], true)
 <body>
     <div class="container">
         <div class="header">
-            <h1>Store Collection</h1>
+            <h1>Assigned Store Session</h1>
             <div class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
                 <a href="store.php" class="active">Store</a>
@@ -180,7 +190,7 @@ $receipt_images = $collection ? json_decode($collection['receipt_images'], true)
                 <p><strong>Target Amount:</strong> <?php echo number_format($assignment['target_amount'], 2); ?></p>
             </div>
             
-            <h2>Collection Details</h2>
+            <h2>Assigned Store Session</h2>
             <form method="post" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="amount_collected">Amount Collected:</label>
@@ -195,25 +205,37 @@ $receipt_images = $collection ? json_decode($collection['receipt_images'], true)
                 </div>
                 
                 <div class="form-group">
-                    <label for="comments">Comments:</label>
+                    <label for="mode_of_payment">Mode of Pending Payment:</label>
+                    <select id="mode_of_payment" name="mode_of_payment" required>
+                        <option value="">Select Mode</option>
+                        <option value="cash" <?php echo ($collection && $collection['mode_of_payment'] === 'cash') ? 'selected' : ''; ?>>Cash</option>
+                        <option value="cheque" <?php echo ($collection && $collection['mode_of_payment'] === 'cheque') ? 'selected' : ''; ?>>Cheque</option>
+                        <option value="online_transfer" <?php echo ($collection && $collection['mode_of_payment'] === 'online_transfer') ? 'selected' : ''; ?>>Online Transfer</option>
+                        <option value="credit_card" <?php echo ($collection && $collection['mode_of_payment'] === 'credit_card') ? 'selected' : ''; ?>>Credit Card</option>
+                        <option value="other" <?php echo ($collection && $collection['mode_of_payment'] === 'other') ? 'selected' : ''; ?>>Other</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="comments">Comment:</label>
                     <textarea id="comments" name="comments" rows="4"><?php echo htmlspecialchars($comments); ?></textarea>
                 </div>
                 
                 <div class="form-group">
-                    <label for="receipt_images">Upload Receipts/Books Images:</label>
-                    <input type="file" id="receipt_images" name="receipt_images[]" multiple accept="image/*,.pdf">
-                    <small>Upload receipt images, book photos, etc. (JPG, PNG, GIF, PDF)</small>
+                    <label for="zslip_images">Upload Z-Slip to Complete Store Collection:</label>
+                    <input type="file" id="zslip_images" name="zslip_images[]" multiple accept="image/*,.pdf">
+                    <small>Upload Z-slip images to complete the store collection (JPG, PNG, GIF, PDF)</small>
                 </div>
                 
-                <button type="submit" class="btn">Save Collection</button>
+                <button type="submit" class="btn">Complete Store Collection</button>
             </form>
             
-            <?php if (!empty($receipt_images)): ?>
-                <h2>Uploaded Receipts</h2>
+            <?php if (!empty($zslip_images)): ?>
+                <h2>Uploaded Z-Slips</h2>
                 <div class="image-preview">
-                    <?php foreach ($receipt_images as $img): ?>
+                    <?php foreach ($zslip_images as $img): ?>
                         <a href="../uploads/<?php echo htmlspecialchars($img); ?>" target="_blank">
-                            <img src="../uploads/<?php echo htmlspecialchars($img); ?>" alt="Receipt">
+                            <img src="../uploads/<?php echo htmlspecialchars($img); ?>" alt="Z-Slip">
                         </a>
                     <?php endforeach; ?>
                 </div>
