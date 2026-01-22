@@ -32,6 +32,23 @@ function initializeDatabase() {
     )";
     $pdo->exec($sql);
     
+    // Malls table
+    $sql = "CREATE TABLE IF NOT EXISTS malls (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        location VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )";
+    $pdo->exec($sql);
+    
+    // Entities table
+    $sql = "CREATE TABLE IF NOT EXISTS entities (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )";
+    $pdo->exec($sql);
+    
     // Regions table
     $sql = "CREATE TABLE IF NOT EXISTS regions (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -46,11 +63,13 @@ function initializeDatabase() {
         name VARCHAR(100) NOT NULL,
         address TEXT,
         region_id INT,
-        mall VARCHAR(100),
-        entity VARCHAR(100),
+        mall_id INT,
+        entity_id INT,
         brand VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (region_id) REFERENCES regions(id)
+        FOREIGN KEY (region_id) REFERENCES regions(id),
+        FOREIGN KEY (mall_id) REFERENCES malls(id),
+        FOREIGN KEY (entity_id) REFERENCES entities(id)
     )";
     $pdo->exec($sql);
     

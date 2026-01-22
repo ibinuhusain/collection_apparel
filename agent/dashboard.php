@@ -13,16 +13,27 @@ $agent_id = $_SESSION['user_id'];
 // Get today's date for statistics
 $today = date('Y-m-d');
 
-// Get agent's assignments for today
-$stmt = $pdo->prepare("
-    SELECT da.*, s.name as store_name, s.address as store_address, s.mall
-    FROM daily_assignments da
-    JOIN stores s ON da.store_id = s.id
-    WHERE da.agent_id = ? AND DATE(da.date_assigned) = ?
-    ORDER BY s.name
-");
-$stmt->execute([$agent_id, $today]);
-$assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Check if required tables exist before querying
+$daily_assignments_table_exists = $pdo->query("SHOW TABLES LIKE 'daily_assignments'")->rowCount();
+$stores_table_exists = $pdo->query("SHOW TABLES LIKE 'stores'")->rowCount();
+
+if ($daily_assignments_table_exists > 0 && $stores_table_exists > 0) {
+    // Get agent's assignments for today
+    $stmt = $pdo->prepare("
+        SELECT da.*, s.name as store_name, s.address as store_address, s.mall
+        FROM daily_assignments da
+        JOIN stores s ON da.store_id = s.id
+        WHERE da.agent_id = ? AND DATE(da.date_assigned) = ?
+        ORDER BY s.name
+    ");
+    $stmt->execute([$agent_id, $today]);
+    $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $assignments = [];
+}
+
+// Check if collections table exists before querying
+$collections_table_exists = $pdo->query("SHOW TABLES LIKE 'collections'")->rowCount();
 
 // Calculate statistics
 $total_target = 0;
@@ -33,15 +44,18 @@ $total_assignments = count($assignments);
 foreach ($assignments as $assignment) {
     $total_target += $assignment['target_amount'];
     
-    // Get collection for this assignment
-    $collection_stmt = $pdo->prepare("SELECT amount_collected FROM collections WHERE assignment_id = ?");
-    $collection_stmt->execute([$assignment['id']]);
-    $collection = $collection_stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($collection) {
-        $total_collected += $collection['amount_collected'];
-        if ($assignment['status'] === 'completed') {
-            $completed_count++;
+    // Get collection for this assignment if collections table exists
+    if ($collections_table_exists > 0) {
+        // Get collection for this assignment
+        $collection_stmt = $pdo->prepare("SELECT amount_collected FROM collections WHERE assignment_id = ?");
+        $collection_stmt->execute([$assignment['id']]);
+        $collection = $collection_stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($collection) {
+            $total_collected += $collection['amount_collected'];
+            if ($assignment['status'] === 'completed') {
+                $completed_count++;
+            }
         }
     }
 }
@@ -49,20 +63,32 @@ foreach ($assignments as $assignment) {
 $collection_percentage = $total_target > 0 ? round(($total_collected / $total_target) * 100, 2) : 0;
 $remaining_assignments = $total_assignments - $completed_count;
 
-// Get bank submissions count for this agent
-$bank_stmt = $pdo->prepare("SELECT COUNT(*) as count FROM bank_submissions WHERE agent_id = ?");
-$bank_stmt->execute([$agent_id]);
-$bank_submissions = $bank_stmt->fetchColumn() ?: 0;
+// Check if bank_submissions table exists before querying
+$bank_submissions_table_exists = $pdo->query("SHOW TABLES LIKE 'bank_submissions'")->rowCount();
 
-// Get distinct malls assigned to this agent today
-$malls_stmt = $pdo->prepare("
-    SELECT DISTINCT s.mall 
-    FROM daily_assignments da
-    JOIN stores s ON da.store_id = s.id
-    WHERE da.agent_id = ? AND DATE(da.date_assigned) = ? AND s.mall IS NOT NULL
-");
-$malls_stmt->execute([$agent_id, $today]);
-$malls_assigned = $malls_stmt->fetchAll(PDO::FETCH_COLUMN);
+if ($bank_submissions_table_exists > 0) {
+    // Get bank submissions count for this agent
+    $bank_stmt = $pdo->prepare("SELECT COUNT(*) as count FROM bank_submissions WHERE agent_id = ?");
+    $bank_stmt->execute([$agent_id]);
+    $bank_submissions = $bank_stmt->fetchColumn() ?: 0;
+} else {
+    $bank_submissions = 0;
+}
+
+// Check if required tables exist before querying malls
+if ($daily_assignments_table_exists > 0 && $stores_table_exists > 0) {
+    // Get distinct malls assigned to this agent today
+    $malls_stmt = $pdo->prepare("
+        SELECT DISTINCT s.mall 
+        FROM daily_assignments da
+        JOIN stores s ON da.store_id = s.id
+        WHERE da.agent_id = ? AND DATE(da.date_assigned) = ? AND s.mall IS NOT NULL
+    ");
+    $malls_stmt->execute([$agent_id, $today]);
+    $malls_assigned = $malls_stmt->fetchAll(PDO::FETCH_COLUMN);
+} else {
+    $malls_assigned = [];
+}
 ?>
 
 <!DOCTYPE html>
@@ -155,18 +181,27 @@ $malls_assigned = $malls_stmt->fetchAll(PDO::FETCH_COLUMN);
                     <tbody>
                         <?php foreach ($assignments as $assignment): ?>
                             <?php
-                            // Get collection for this assignment
-                            $collection_stmt = $pdo->prepare("SELECT amount_collected FROM collections WHERE assignment_id = ?");
-                            $collection_stmt->execute([$assignment['id']]);
-                            $collection = $collection_stmt->fetch(PDO::FETCH_ASSOC);
+                            // Get collection for this assignment if collections table exists
+                            if ($collections_table_exists > 0) {
+                                $collection_stmt = $pdo->prepare("SELECT amount_collected FROM collections WHERE assignment_id = ?");
+                                $collection_stmt->execute([$assignment['id']]);
+                                $collection = $collection_stmt->fetch(PDO::FETCH_ASSOC);
+                                
+                                $collected_amount = $collection ? $collection['amount_collected'] : 0;
+                            } else {
+                                $collected_amount = 0;
+                            }
                             
-                            $collected_amount = $collection ? $collection['amount_collected'] : 0;
                             $status = $assignment['status'];
                             
-                            // Get store details including new fields
-                            $store_stmt = $pdo->prepare("SELECT * FROM stores WHERE id = ?");
-                            $store_stmt->execute([$assignment['store_id']]);
-                            $store = $store_stmt->fetch(PDO::FETCH_ASSOC);
+                            // Get store details including new fields if stores table exists
+                            if ($stores_table_exists > 0) {
+                                $store_stmt = $pdo->prepare("SELECT * FROM stores WHERE id = ?");
+                                $store_stmt->execute([$assignment['store_id']]);
+                                $store = $store_stmt->fetch(PDO::FETCH_ASSOC);
+                            } else {
+                                $store = [];
+                            }
                             ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($assignment['store_name']); ?></td>

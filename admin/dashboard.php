@@ -13,30 +13,54 @@ $stmt = $pdo->prepare("SELECT COUNT(*) as total_shops FROM stores");
 $stmt->execute();
 $total_shops = $stmt->fetchColumn() ?: 0;
 
-$stmt = $pdo->prepare("SELECT COUNT(*) as total_malls FROM malls");
-$stmt->execute();
-$total_malls = $stmt->fetchColumn() ?: 0;
+// Check if malls table exists before querying
+$table_exists = $pdo->query("SHOW TABLES LIKE 'malls'")->rowCount();
+if ($table_exists > 0) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total_malls FROM malls");
+    $stmt->execute();
+    $total_malls = $stmt->fetchColumn() ?: 0;
+} else {
+    $total_malls = 0;
+}
 
-$stmt = $pdo->prepare("SELECT COUNT(*) as total_entities FROM entities");
-$stmt->execute();
-$total_entities = $stmt->fetchColumn() ?: 0;
+// Check if entities table exists before querying
+$table_exists = $pdo->query("SHOW TABLES LIKE 'entities'")->rowCount();
+if ($table_exists > 0) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total_entities FROM entities");
+    $stmt->execute();
+    $total_entities = $stmt->fetchColumn() ?: 0;
+} else {
+    $total_entities = 0;
+}
 
-$stmt = $pdo->prepare("SELECT COUNT(*) as total_regions FROM regions");
-$stmt->execute();
-$total_regions = $stmt->fetchColumn() ?: 0;
+// Check if regions table exists before querying
+$table_exists = $pdo->query("SHOW TABLES LIKE 'regions'")->rowCount();
+if ($table_exists > 0) {
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total_regions FROM regions");
+    $stmt->execute();
+    $total_regions = $stmt->fetchColumn() ?: 0;
+} else {
+    $total_regions = 0;
+}
 
-// Calculate completion rate
-$stmt = $pdo->prepare("
-    SELECT 
-        COUNT(CASE WHEN da.status = 'completed' THEN 1 END) as completed_assignments,
-        COUNT(*) as total_assignments
-    FROM daily_assignments da
-");
-$stmt->execute();
-$result = $stmt->fetch(PDO::FETCH_ASSOC);
-$completed_assignments = $result['completed_assignments'] ?: 0;
-$total_assignments = $result['total_assignments'] ?: 1; // Avoid division by zero
-
+// Check if daily_assignments table exists before querying
+$table_exists = $pdo->query("SHOW TABLES LIKE 'daily_assignments'")->rowCount();
+if ($table_exists > 0) {
+    // Calculate completion rate
+    $stmt = $pdo->prepare("
+        SELECT 
+            COUNT(CASE WHEN da.status = 'completed' THEN 1 END) as completed_assignments,
+            COUNT(*) as total_assignments
+        FROM daily_assignments da
+    ");
+    $stmt->execute();
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $completed_assignments = $result['completed_assignments'] ?: 0;
+    $total_assignments = $result['total_assignments'] ?: 1; // Avoid division by zero
+} else {
+    $completed_assignments = 0;
+    $total_assignments = 1;
+}
 $completion_rate = $total_assignments > 0 ? round(($completed_assignments / $total_assignments) * 100, 2) : 0;
 ?>
 

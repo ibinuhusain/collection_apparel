@@ -22,9 +22,117 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_shops'])) {
 // Handle Excel import
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_excel'])) {
     if (isset($_FILES['excel_file']) && $_FILES['excel_file']['error'] === UPLOAD_ERR_OK) {
-        // In a real implementation, we would parse the Excel file
-        // For now, we'll just simulate the import
-        $success_message = "Excel import would happen here. For demo purposes, we're skipping this.";
+        $file_tmp = $_FILES['excel_file']['tmp_name'];
+        $file_type = $_FILES['excel_file']['type'];
+        
+        // Check if it's a valid Excel file
+        if ($file_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+            $file_type == 'application/vnd.ms-excel' ||
+            pathinfo($_FILES['excel_file']['name'], PATHINFO_EXTENSION) === 'xlsx' ||
+            pathinfo($_FILES['excel_file']['name'], PATHINFO_EXTENSION) === 'xls') {
+            
+            // Read CSV file (for simplicity)
+            if (($handle = fopen($file_tmp, "r")) !== FALSE) {
+                // Skip header row
+                fgetcsv($handle, 1000, ",");
+                
+                $success_count = 0;
+                $error_count = 0;
+                
+                while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                    // Check if we have enough columns
+                    if (count($data) >= 7) {
+                        $agent_name = trim($data[0]);
+                        $shop_name = trim($data[2]);
+                        $mall_name = trim($data[3]);
+                        $region_name = trim($data[4]);
+                        $entity_name = trim($data[5]);
+                        $brand = trim($data[6]);
+                        
+                        // Find agent by name
+                        $agent_stmt = $pdo->prepare("SELECT id FROM users WHERE name = ? AND role = 'agent'");
+                        $agent_stmt->execute([$agent_name]);
+                        $agent_result = $agent_stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($agent_result) {
+                            $agent_id = $agent_result['id'];
+                            
+                            // Find mall by name
+                            $mall_stmt = $pdo->prepare("SELECT id FROM malls WHERE name = ?");
+                            $mall_stmt->execute([$mall_name]);
+                            $mall_result = $mall_stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            $mall_id = $mall_result ? $mall_result['id'] : null;
+                            
+                            // Find region by name
+                            $region_stmt = $pdo->prepare("SELECT id FROM regions WHERE name = ?");
+                            $region_stmt->execute([$region_name]);
+                            $region_result = $region_stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            $region_id = $region_result ? $region_result['id'] : null;
+                            
+                            // Find entity by name
+                            $entity_stmt = $pdo->prepare("SELECT id FROM entities WHERE name = ?");
+                            $entity_stmt->execute([$entity_name]);
+                            $entity_result = $entity_stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            $entity_id = $entity_result ? $entity_result['id'] : null;
+                            
+                            // Find store by name and related fields
+                            $store_query = "SELECT id FROM stores WHERE name = ?";
+                            $store_params = [$shop_name];
+                            
+                            if ($mall_id) {
+                                $store_query .= " AND mall_id = ?";
+                                $store_params[] = $mall_id;
+                            }
+                            
+                            if ($region_id) {
+                                $store_query .= " AND region_id = ?";
+                                $store_params[] = $region_id;
+                            }
+                            
+                            if ($entity_id) {
+                                $store_query .= " AND entity_id = ?";
+                                $store_params[] = $entity_id;
+                            }
+                            
+                            if ($brand) {
+                                $store_query .= " AND brand = ?";
+                                $store_params[] = $brand;
+                            }
+                            
+                            $store_stmt = $pdo->prepare($store_query);
+                            $store_stmt->execute($store_params);
+                            $store_result = $store_stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            if ($store_result) {
+                                $store_id = $store_result['id'];
+                                
+                                // Insert assignment for today
+                                $today = date('Y-m-d');
+                                $assignment_stmt = $pdo->prepare("INSERT INTO daily_assignments (agent_id, store_id, date_assigned, target_amount) VALUES (?, ?, ?, ?)");
+                                $assignment_stmt->execute([$agent_id, $store_id, $today, 0]); // Default target amount to 0
+                                $success_count++;
+                            } else {
+                                $error_count++; // Store not found
+                            }
+                        } else {
+                            $error_count++; // Agent not found
+                        }
+                    } else {
+                        $error_count++; // Not enough columns
+                    }
+                }
+                fclose($handle);
+                
+                $success_message = "Import completed: $success_count assignments added successfully, $error_count errors occurred.";
+            } else {
+                $error_message = "Could not read the uploaded file.";
+            }
+        } else {
+            $error_message = "Invalid file type. Please upload a CSV, XLS, or XLSX file.";
+        }
     } else {
         $error_message = "Please select an Excel file to import.";
     }
@@ -43,18 +151,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_daily_assignmen
 $agents_stmt = $pdo->query("SELECT id, name, username FROM users WHERE role = 'agent'");
 $agents = $agents_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get all stores
-$stores_stmt = $pdo->query("SELECT s.id, s.name, s.mall, s.entity, s.brand, r.name as region_name FROM stores s LEFT JOIN regions r ON s.region_id = r.id");
+// Get all stores with related data
+$stores_stmt = $pdo->query("
+    SELECT s.id, s.name, m.name as mall, e.name as entity, s.brand, r.name as region_name 
+    FROM stores s 
+    LEFT JOIN malls m ON s.mall_id = m.id
+    LEFT JOIN entities e ON s.entity_id = e.id
+    LEFT JOIN regions r ON s.region_id = r.id
+");
 $stores = $stores_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get today's assignments
 $today = date('Y-m-d');
 $assignments_stmt = $pdo->prepare("
-    SELECT da.*, u.name as agent_name, s.name as store_name, r.name as region_name
+    SELECT da.*, u.name as agent_name, s.name as store_name, r.name as region_name, m.name as mall, e.name as entity
     FROM daily_assignments da
     JOIN users u ON da.agent_id = u.id
     JOIN stores s ON da.store_id = s.id
     LEFT JOIN regions r ON s.region_id = r.id
+    LEFT JOIN malls m ON s.mall_id = m.id
+    LEFT JOIN entities e ON s.entity_id = e.id
     WHERE DATE(da.date_assigned) = ?
     ORDER BY u.name, s.name
 ");
