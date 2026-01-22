@@ -160,10 +160,9 @@ $regions = $regions_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get all stores with related names
 $stores_stmt = $pdo->query("
-    SELECT s.*, r.name as region_name, m.name as mall_name, e.name as entity_name
+    SELECT s.*, r.name as region_name, s.mall as mall_name, e.name as entity_name
     FROM stores s 
     LEFT JOIN regions r ON s.region_id = r.id 
-    LEFT JOIN malls m ON s.mall_id = m.id
     LEFT JOIN entities e ON s.entity_id = e.id
     ORDER BY r.name, s.name
 ");

@@ -242,10 +242,29 @@ tr:hover {
     border: 1px solid #ddd;
 }
 
-/* Responsive design */
+/* Enhanced Responsive Design */
+@media (max-width: 1024px) {
+    .dashboard-stats {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+    }
+    
+    .stat-card h3 {
+        font-size: 1.6em;
+    }
+}
+
 @media (max-width: 768px) {
     .container {
         padding: 5px;
+    }
+    
+    .header {
+        padding: 10px 5px;
+    }
+    
+    .header h1 {
+        font-size: 1.5em;
     }
     
     .nav-links {
@@ -254,8 +273,9 @@ tr:hover {
         align-items: stretch;
     }
     
-    .header {
-        padding: 10px 5px;
+    .nav-links a {
+        padding: 10px;
+        font-size: 14px;
     }
     
     .dashboard-stats {
@@ -264,48 +284,119 @@ tr:hover {
     }
     
     .stat-card h3 {
-        font-size: 1.5em;
-    }
-    
-    table {
-        font-size: 12px;
-    }
-    
-    th, td {
-        padding: 8px;
-        min-width: 80px;
-    }
-    
-    .btn {
-        padding: 10px 15px;
-        font-size: 14px;
+        font-size: 1.4em;
     }
     
     .content {
         padding: 10px;
     }
+    
+    table {
+        font-size: 12px;
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    th, td {
+        padding: 8px 6px;
+        min-width: 70px;
+    }
+    
+    .btn {
+        padding: 10px 15px;
+        font-size: 14px;
+        width: auto;
+    }
+    
+    .form-group {
+        margin-bottom: 12px;
+    }
+    
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="date"],
+    select,
+    textarea {
+        padding: 10px;
+        font-size: 14px;
+    }
 }
 
 @media (max-width: 480px) {
+    .header h1 {
+        font-size: 1.3em;
+    }
+    
     .dashboard-stats {
         grid-template-columns: 1fr;
+    }
+    
+    .stat-card {
+        padding: 12px;
     }
     
     .stat-card h3 {
         font-size: 1.3em;
     }
     
-    .nav-links a {
-        max-width: none;
-        padding: 10px;
+    .stat-card p {
+        font-size: 12px;
+    }
+    
+    .content {
+        padding: 8px;
     }
     
     table {
         font-size: 11px;
+        min-width: 600px;
     }
     
     th, td {
-        padding: 6px;
-        min-width: 70px;
+        padding: 6px 4px;
+        min-width: 60px;
+    }
+    
+    .btn {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    
+    .alert {
+        padding: 12px;
+        font-size: 13px;
+    }
+    
+    .nav-links a {
+        padding: 12px 8px;
+        font-size: 13px;
+    }
+}
+
+/* Extra small devices (phones, less than 320px) */
+@media (max-width: 320px) {
+    body {
+        font-size: 12px;
+    }
+    
+    .header h1 {
+        font-size: 1.2em;
+    }
+    
+    .stat-card h3 {
+        font-size: 1.2em;
+    }
+    
+    table {
+        font-size: 10px;
+        min-width: 500px;
+    }
+    
+    th, td {
+        padding: 4px 3px;
+        min-width: 50px;
     }
 }
