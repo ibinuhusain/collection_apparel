@@ -108,7 +108,7 @@ $submission_history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
 <body>
     <div class="container">
         <div class="header">
-            <h1>Bank Submissions</h1>
+            <h1>Bank Submission Session</h1>
             <div class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
                 <a href="store.php">Store</a>
@@ -126,9 +126,9 @@ $submission_history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
             
-            <h2>Submit to Bank</h2>
+            <h2>Bank Submission</h2>
             <div class="card">
-                <p><strong>Today's Total Collected:</strong> <?php echo number_format($today_total, 2); ?></p>
+                <p><strong>Total Amount Submitted:</strong> <?php echo number_format($today_total, 2); ?></p>
                 <p><strong>Date:</strong> <?php echo date('M j, Y'); ?></p>
             </div>
             
@@ -142,7 +142,7 @@ $submission_history = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
                 
                 <div class="form-group">
-                    <label for="receipt_image">Bank Deposit Receipt:</label>
+                    <label for="receipt_image">Upload Receipt:</label>
                     <input type="file" id="receipt_image" name="receipt_image" accept="image/*,.pdf" required>
                     <small>Upload the bank deposit slip/receipt</small>
                 </div>

@@ -42,6 +42,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Error adding store: ' . $e->getMessage();
             }
         }
+    } elseif (isset($_POST['import_stores'])) {
+        if (isset($_FILES['excel_file']) && $_FILES['excel_file']['error'] === UPLOAD_ERR_OK) {
+            $file_tmp = $_FILES['excel_file']['tmp_name'];
+            $file_type = $_FILES['excel_file']['type'];
+            
+            // Check if it's a valid Excel file
+            if ($file_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                $file_type == 'application/vnd.ms-excel' ||
+                pathinfo($_FILES['excel_file']['name'], PATHINFO_EXTENSION) === 'xlsx' ||
+                pathinfo($_FILES['excel_file']['name'], PATHINFO_EXTENSION) === 'xls') {
+                
+                // Read CSV file (for simplicity)
+                if (($handle = fopen($file_tmp, "r")) !== FALSE) {
+                    // Skip header row
+                    fgetcsv($handle, 1000, ",");
+                    
+                    $success_count = 0;
+                    $error_count = 0;
+                    
+                    while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                        // Check if we have enough columns
+                        if (count($data) >= 6) {
+                            $store_name = trim($data[0]);
+                            $mall_name = trim($data[1]);
+                            $entity_name = trim($data[2]);
+                            $brand = trim($data[3]);
+                            $address = trim($data[4]);
+                            $region_name = trim($data[5]);
+                            
+                            // Find or create mall
+                            $mall_stmt = $pdo->prepare("SELECT id FROM malls WHERE name = ?");
+                            $mall_stmt->execute([$mall_name]);
+                            $mall_result = $mall_stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            if (!$mall_result) {
+                                $mall_insert_stmt = $pdo->prepare("INSERT INTO malls (name) VALUES (?)");
+                                $mall_insert_stmt->execute([$mall_name]);
+                                $mall_id = $pdo->lastInsertId();
+                            } else {
+                                $mall_id = $mall_result['id'];
+                            }
+                            
+                            // Find or create entity
+                            $entity_stmt = $pdo->prepare("SELECT id FROM entities WHERE name = ?");
+                            $entity_stmt->execute([$entity_name]);
+                            $entity_result = $entity_stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            if (!$entity_result) {
+                                $entity_insert_stmt = $pdo->prepare("INSERT INTO entities (name) VALUES (?)");
+                                $entity_insert_stmt->execute([$entity_name]);
+                                $entity_id = $pdo->lastInsertId();
+                            } else {
+                                $entity_id = $entity_result['id'];
+                            }
+                            
+                            // Find or create region
+                            $region_stmt = $pdo->prepare("SELECT id FROM regions WHERE name = ?");
+                            $region_stmt->execute([$region_name]);
+                            $region_result = $region_stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            if (!$region_result) {
+                                $region_insert_stmt = $pdo->prepare("INSERT INTO regions (name) VALUES (?)");
+                                $region_insert_stmt->execute([$region_name]);
+                                $region_id = $pdo->lastInsertId();
+                            } else {
+                                $region_id = $region_result['id'];
+                            }
+                            
+                            // Insert store
+                            try {
+                                $store_stmt = $pdo->prepare("INSERT INTO stores (name, address, mall_id, entity_id, brand, region_id) VALUES (?, ?, ?, ?, ?, ?)");
+                                $store_stmt->execute([$store_name, $address, $mall_id, $entity_id, $brand, $region_id]);
+                                $success_count++;
+                            } catch (PDOException $e) {
+                                $error_count++;
+                            }
+                        } else {
+                            $error_count++;
+                        }
+                    }
+                    fclose($handle);
+                    
+                    $message = "Import completed: $success_count stores added successfully, $error_count errors occurred.";
+                } else {
+                    $error = "Could not read the uploaded file.";
+                }
+            } else {
+                $error = "Invalid file type. Please upload a CSV, XLS, or XLSX file.";
+            }
+        } else {
+            $error = "Please select an Excel file to import.";
+        }
     } elseif (isset($_POST['delete_store'])) {
         $store_id = $_POST['store_id'];
         $stmt = $pdo->prepare("DELETE FROM stores WHERE id = ?");
@@ -66,11 +158,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $regions_stmt = $pdo->query("SELECT * FROM regions ORDER BY name");
 $regions = $regions_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get all stores with region names
+// Get all stores with related names
 $stores_stmt = $pdo->query("
-    SELECT s.*, r.name as region_name 
+    SELECT s.*, r.name as region_name, m.name as mall_name, e.name as entity_name
     FROM stores s 
     LEFT JOIN regions r ON s.region_id = r.id 
+    LEFT JOIN malls m ON s.mall_id = m.id
+    LEFT JOIN entities e ON s.entity_id = e.id
     ORDER BY r.name, s.name
 ");
 $stores = $stores_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -118,83 +212,22 @@ $pending_submissions = $pending_submissions_stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
             
-            <h2>Add New Region</h2>
-            <form method="post" action="">
-                <input type="hidden" name="add_region" value="1">
+            <h2>Import Stores via Excel</h2>
+            <form method="post" action="" enctype="multipart/form-data">
+                <input type="hidden" name="import_stores" value="1">
                 
                 <div class="form-group">
-                    <label for="region_name">Region Name:</label>
-                    <input type="text" id="region_name" name="region_name" required>
+                    <label for="excel_file">Upload Excel File:</label>
+                    <input type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
+                    <small>Excel file should have columns: Store Name, Mall, Entity, Brand, Address, Region</small>
                 </div>
                 
-                <button type="submit" class="btn">Add Region</button>
+                <button type="submit" class="btn">Import Stores from Excel</button>
             </form>
             
             <hr style="margin: 30px 0;">
             
-            <h2>Add New Store</h2>
-            <form method="post" action="">
-                <input type="hidden" name="add_store" value="1">
-                
-                <div class="form-group">
-                    <label for="store_name">Store Name:</label>
-                    <input type="text" id="store_name" name="store_name" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="mall">Mall:</label>
-                    <input type="text" id="mall" name="mall">
-                </div>
-                
-                <div class="form-group">
-                    <label for="entity">Entity:</label>
-                    <input type="text" id="entity" name="entity">
-                </div>
-                
-                <div class="form-group">
-                    <label for="brand">Brand:</label>
-                    <input type="text" id="brand" name="brand">
-                </div>
-                
-                <div class="form-group">
-                    <label for="store_address">Store Address:</label>
-                    <textarea id="store_address" name="store_address"></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label for="region_id">Region:</label>
-                    <select id="region_id" name="region_id" required>
-                        <option value="">Select a region</option>
-                        <?php foreach ($regions as $region): ?>
-                            <option value="<?php echo $region['id']; ?>"><?php echo htmlspecialchars($region['name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                
-                <button type="submit" class="btn">Add Store</button>
-            </form>
-            
-            <hr style="margin: 30px 0;">
-            
-            <h2>Regions</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Region Name</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($regions as $region): ?>
-                        <tr>
-                            <td><?php echo $region['id']; ?></td>
-                            <td><?php echo htmlspecialchars($region['name']); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            
-            <h2>Stores</h2>
+            <h2>Imported Stores</h2>
             <table>
                 <thead>
                     <tr>
@@ -213,8 +246,8 @@ $pending_submissions = $pending_submissions_stmt->fetchAll(PDO::FETCH_ASSOC);
                         <tr>
                             <td><?php echo $store['id']; ?></td>
                             <td><?php echo htmlspecialchars($store['name']); ?></td>
-                            <td><?php echo htmlspecialchars($store['mall'] ?? 'N/A'); ?></td>
-                            <td><?php echo htmlspecialchars($store['entity'] ?? 'N/A'); ?></td>
+                            <td><?php echo htmlspecialchars($store['mall_name'] ?? 'N/A'); ?></td>
+                            <td><?php echo htmlspecialchars($store['entity_name'] ?? 'N/A'); ?></td>
                             <td><?php echo htmlspecialchars($store['brand'] ?? 'N/A'); ?></td>
                             <td><?php echo htmlspecialchars($store['address']); ?></td>
                             <td><?php echo htmlspecialchars($store['region_name'] ?? 'N/A'); ?></td>
@@ -261,12 +294,8 @@ $pending_submissions = $pending_submissions_stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <form method="post" style="display:inline;">
                                         <input type="hidden" name="update_approval" value="1">
                                         <input type="hidden" name="submission_id" value="<?php echo $submission['id']; ?>">
-                                        <select name="status" required>
-                                            <option value="">Choose action</option>
-                                            <option value="approved">Approve</option>
-                                            <option value="rejected">Reject</option>
-                                        </select>
-                                        <button type="submit" class="btn">Update</button>
+                                        <button type="submit" name="status" value="approved" class="btn btn-success">Approve</button>
+                                        <button type="submit" name="status" value="rejected" class="btn btn-danger">Reject</button>
                                     </form>
                                 </td>
                             </tr>
