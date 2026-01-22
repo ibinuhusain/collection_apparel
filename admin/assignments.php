@@ -153,9 +153,8 @@ $agents = $agents_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get all stores with related data
 $stores_stmt = $pdo->query("
-    SELECT s.id, s.name, m.name as mall, e.name as entity, s.brand, r.name as region_name 
+    SELECT s.id, s.name, s.mall, e.name as entity, s.brand, r.name as region_name 
     FROM stores s 
-    LEFT JOIN malls m ON s.mall_id = m.id
     LEFT JOIN entities e ON s.entity_id = e.id
     LEFT JOIN regions r ON s.region_id = r.id
 ");
@@ -164,12 +163,11 @@ $stores = $stores_stmt->fetchAll(PDO::FETCH_ASSOC);
 // Get today's assignments
 $today = date('Y-m-d');
 $assignments_stmt = $pdo->prepare("
-    SELECT da.*, u.name as agent_name, s.name as store_name, r.name as region_name, m.name as mall, e.name as entity
+    SELECT da.*, u.name as agent_name, s.name as store_name, r.name as region_name, s.mall, e.name as entity
     FROM daily_assignments da
     JOIN users u ON da.agent_id = u.id
     JOIN stores s ON da.store_id = s.id
     LEFT JOIN regions r ON s.region_id = r.id
-    LEFT JOIN malls m ON s.mall_id = m.id
     LEFT JOIN entities e ON s.entity_id = e.id
     WHERE DATE(da.date_assigned) = ?
     ORDER BY u.name, s.name
