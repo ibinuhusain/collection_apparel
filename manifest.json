@@ -1,0 +1,21 @@
+{
+    "name": "Apparel Group Collection Tracker",
+    "short_name": "AG Collector",
+    "description": "Track daily collections by agents for stores - Apparel Group System",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#003459",
+    "icons": [
+        {
+            "src": "images/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "images/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
